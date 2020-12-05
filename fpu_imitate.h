@@ -1,5 +1,6 @@
 #pragma once
 
+float myfadd(float, float);
 float myfmul(float, float);
 float myfdiv(float, float);
 float myfsqrt(float);

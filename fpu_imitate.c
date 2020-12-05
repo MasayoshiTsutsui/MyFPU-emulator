@@ -5,6 +5,16 @@ union float_int
     float f;
 };
 
+void bitprint(int line, int size) {
+    int bit;
+    for (int a=size-1; a >= 0; a--) {
+        bit = (line >> a) & 1;
+        printf("%d", bit);
+    }
+    printf("\n");
+    return;
+}
+
 float myfmul (float a, float b){ //mostly checked through fdiv
     union float_int input1;
     union float_int input2;
@@ -428,3 +438,203 @@ int myfless(float a, float b) {
     }
     return ans;
 }
+
+
+float myfadd(float a, float b) { //mostly checked
+    union float_int input1;
+    union float_int input2;
+    union float_int ans;
+
+    int sign1, sign2;
+    int exp1, exp2;
+    int mant1, mant1_24;
+    int mant2, mant2_24;
+
+    int addflag;
+
+    int exp_dif;
+
+    int exp_larger;
+
+    int larger_m;
+    int smaller_m;
+    int mant_ans_raw;
+
+    int ans_sign;
+    int ans_exp;
+    int ans_mant25;
+
+    int guardbit; // valuable in fsub case
+
+    input1.f = a;
+    input2.f = b;
+
+    if (((input1.i>>23)&0b11111111) == 0) {
+        sign1 = 0;
+        exp1 = 0;
+        mant1 = 0;
+        mant1_24 = 0;
+    }
+    else {
+        sign1 = (input1.i >> 31) & 1;
+        exp1 = (input1.i >> 23) & 0b11111111;
+        mant1 = input1.i & ((1<<23)-1);
+        mant1_24 = mant1 | (1<<23);
+    }
+    if (((input2.i>>23)&0b11111111) == 0) {
+        sign2 = 0;
+        exp2 = 0;
+        mant2 = 0;
+        mant2_24 = 0;
+    }
+    else {
+        sign2 = (input2.i >> 31) & 1;
+        exp2 = (input2.i >> 23) & 0b11111111;
+        mant2 = input2.i & ((1<<23)-1);
+        mant2_24 = mant2 | (1<<23);
+    }
+
+    addflag = sign1 == sign2;
+
+    int smaller_m_withgb; // guard bit is jointed to smaller_mantissa at tail. so 25 bit num.
+    int larger_m_with0; //0bit is jointed to larger_m at tail. so 25 bit num.
+
+    if ((input1.i & 0x7fffffff) > (input2.i & 0x7fffffff)) {
+        ans_sign = sign1;
+        exp_larger = exp1;
+        exp_dif = exp1-exp2;
+        larger_m = mant1_24;
+        if (exp_dif > 24) {
+            smaller_m = 0;
+            guardbit = 0;
+        }
+        else if (exp_dif == 0) {
+            guardbit = 0;
+            smaller_m = mant2_24 >> exp_dif;
+        }
+        else {
+            guardbit = (mant2_24 >> (exp_dif-1)) & 1;
+            smaller_m = mant2_24 >> exp_dif;
+        }
+    }
+    else {
+        ans_sign = sign2;
+        exp_larger = exp2;
+        exp_dif = exp2-exp1;
+        larger_m = mant2_24;
+        if (exp_dif > 24) {
+            smaller_m = 0;
+            guardbit = 0;
+        }
+        else if (exp_dif == 0) {
+            guardbit = 0;
+            smaller_m = mant1_24 >> exp_dif;
+        }
+        else {
+            guardbit = (mant1_24 >> (exp_dif-1)) & 1;
+            smaller_m = mant1_24 >> exp_dif;
+        }
+    }
+    larger_m_with0 = larger_m<<1; /////
+    smaller_m_withgb = (smaller_m<<1) + guardbit;
+    
+
+    int mant_ans_raw_withgb; //for minus case, subtract larger_m_with0 by smaller_m_withgb; 
+    
+    
+    if (addflag == 1) {
+        mant_ans_raw = larger_m + smaller_m;
+
+    }
+    else {
+        mant_ans_raw_withgb = larger_m_with0 - smaller_m_withgb;
+        mant_ans_raw = mant_ans_raw_withgb>>1;
+    }
+
+    for (int i=24; i >=0; i--) {
+        if (i==24){
+            if (((mant_ans_raw>>24)&1) == 1) {
+                ans_exp = exp_larger+1;
+                ans_mant25 = mant_ans_raw>>1;
+                break;
+            }
+        }
+        else {
+            if (((mant_ans_raw>>i)&1) == 1) {
+                ans_exp = exp_larger - (23-i);
+                if (addflag == 0) { //sub case
+                    if (i==23) {
+                        ans_mant25 = ((mant_ans_raw_withgb<<(23-i))>>1) & ((1<<25)-1); //mant_ans_raw_withgb contains guardbit and guardbit should be discarded naturally, so 1 shift is needed.
+                    }
+                    else if (i==22) {
+                        ans_mant25 = ((mant_ans_raw_withgb<<(23-i))>>1) & ((1<<25)-1);
+                    }
+                    else {
+                        ans_mant25 = (((mant_ans_raw_withgb<<(23-i))>>1) & ((1<<25)-1));
+                    }
+                }
+                else {
+                    ans_mant25 = (mant_ans_raw<<(23-i)) & ((1<<25)-1);
+                }
+                break;
+            }
+        }
+
+        if (i==0) {
+            ans_exp = 0;
+            ans_mant25 = 0;
+        }
+    }
+    ans.i = (ans_sign<<31) + (ans_exp<<23) + (ans_mant25 & ((1<<23)-1));
+    //if (a == -b) {
+        //ans.i = 0;
+    //}
+    return ans.f;
+
+} 
+
+
+//int main() {
+    //union float_int y;
+    //union float_int ideal;
+    //union float_int a;
+    //union float_int b;
+    //b.f = 1.0;
+    //union float_int e;
+    //e.i = 1<<23;
+    //union float_int twom23;
+    //twom23.i = 104<<23;
+    //srand(1001);
+    //for (int _=0; _ <30; _++) {
+        //b.i = random();
+        //printf("b    :");
+        //bitprint(b.i,32);
+        //for (int i=0; i < 0xffffffff; i++) {
+            //if (((i >> 23) & 0b11111111) == 0b11111111) {
+                //continue;
+            //}
+            //a.i = i;
+            //y.f = myfadd(a.f,b.f);
+            //if (((i >> 23) & 0b11111111) == 0) {
+                //a.i = 0;
+            //}
+            //if (((b.i >> 23) & 0b11111111) == 0) {
+                //b.f = 0;
+            //}
+            //ideal.f = a.f + b.f;
+            //if (((ideal.i >> 23) & 0b11111111) == 0b11111111) {
+                //continue;
+            //}
+            //if (fabsf(y.f-ideal.f) >= fabsf(a.f)*twom23.f && fabsf(y.f-ideal.f) >= fabsf(b.f)*twom23.f && fabsf(y.f-ideal.f) >= fabsf(ideal.f)*twom23.f && fabsf(y.f-ideal.f) >= e.f) {
+                //printf("i    :");
+                //bitprint(i,32);
+                //printf("ideal:");
+                //bitprint(ideal.i,32);
+                //printf("y    :");
+                //bitprint(y.i,32);
+                //exit(1);
+            //}
+        //}
+    //}    
+    //return 0;
+//}
