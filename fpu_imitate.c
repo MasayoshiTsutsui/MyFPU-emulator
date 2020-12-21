@@ -586,12 +586,15 @@ float myfadd(float a, float b) { //mostly checked
         }
     }
     ans.i = (ans_sign<<31) + (ans_exp<<23) + (ans_mant25 & ((1<<23)-1));
-    //if (a == -b) {
-        //ans.i = 0;
-    //}
     return ans.f;
 
 } 
+
+float myfsub(float a, float b) { //mostly checked
+    float ans;
+    ans = myfadd(a,-b);
+    return ans;
+}
 
 
 //int main() {
@@ -609,7 +612,7 @@ float myfadd(float a, float b) { //mostly checked
         //b.i = random();
         //printf("b    :");
         //bitprint(b.i,32);
-        //for (int i=0; i < 0xffffffff; i++) {
+        //for (int i=0; i < 0xffffffff; i++) 
             //if (((i >> 23) & 0b11111111) == 0b11111111) {
                 //continue;
             //}
